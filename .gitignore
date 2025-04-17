@@ -1,0 +1,6 @@
+# Development
+.idea/
+.venv/
+
+# Environment
+.env
