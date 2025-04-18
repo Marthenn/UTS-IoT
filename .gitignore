@@ -4,3 +4,4 @@
 
 # Environment
 .env
+esp32/secrets.h
