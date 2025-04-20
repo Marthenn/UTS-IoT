@@ -4,8 +4,6 @@ import json
 import paho.mqtt.client as paho
 from paho import mqtt
 
-from mongodb import MongoDBHandler
-
 class MQTTHandler:
     def __init__(self, broker, port, username, password, mongo_handler, client_id=""):
         self.client = paho.Client(
@@ -36,12 +34,13 @@ class MQTTHandler:
 
             self.mongo_handler.push_data({
                 "timestamp_esp": timestamp,
-                "timestamp_mqtt": int(time.time()),
+                "timestamp_mqtt": time.time(),
                 "remaining_loops": remaining_loops,
                 "chunk": chunk,
                 "total_chunks": total_chunks,
                 "data": data
             })
+
         except json.JSONDecodeError as e:
             print(f"Failed to decode JSON: {e}")
         except KeyError as e:
