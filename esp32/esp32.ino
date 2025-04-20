@@ -1,7 +1,6 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
-#include <AESLib.h>
 #include <base64.h>
 #include <ArduinoJson.h>
 
@@ -11,11 +10,10 @@
 String selectedImage;
 uint8_t remainingLoops = 0;
 unsigned long lastSend = 0;
-int sendInterval = 45000; // 45 seconds
+time_t sendInterval = 45;
 
 WiFiClientSecure espClient;
 PubSubClient * client;
-AESLib aesLib;
 
 void setup_wifi() {
   delay(10);
@@ -30,8 +28,6 @@ void setup_wifi() {
     delay(500);
     Serial.print(".");
   }
-
-  randomSeed(micros());
 
   Serial.println();
   Serial.println("WiFi connected");
@@ -57,7 +53,7 @@ void setDateTime() {
   time_t now = time(nullptr);
   while (now < 8 * 3600 * 2) {
     Serial.print(".");
-    delay(1000);
+    delay(1000);  
     now = time(nullptr);
   }
   Serial.println();
@@ -70,6 +66,8 @@ void setDateTime() {
   gmtime_r(&now, &timeinfo);
   Serial.print("Current time: ");
   Serial.print(asctime(&timeinfo));
+
+  randomSeed(time(nullptr));
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -86,21 +84,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void sendImage() {
   Serial.printf("Image size: %zu bytes\n", img_len);
 
-  byte iv[16];
-  for (int i = 0; i < 16; i++) {
-    iv[i] = random(0, 256);
-  }
-
-  Serial.print("Generated IV: ");
-  for (int i = 0; i < 16; i++) {
-    Serial.printf("%02X", iv[i]);
-  }
-  Serial.println();
-
   const size_t chunkSize = 1024;
   const size_t totalChunks = (img_len + chunkSize - 1) / chunkSize;
-  size_t offset = 0;
-  size_t chunkNumber = 1;
+  size_t offset = 0, chunkNumber = 1;
 
   client->setBufferSize(4096);
 
@@ -108,22 +94,13 @@ void sendImage() {
     size_t bytesToProcess = min(chunkSize, img_len - offset);
 
     byte chunk[chunkSize];
+    byte encryptedChunk[chunkSize];
     for (size_t i = 0; i < bytesToProcess; i++) {
       chunk[i] = pgm_read_byte(&img[offset + i]);
+      encryptedChunk[i] = chunk[i] ^ XOR_KEY;
     }
 
-    byte encryptedChunk[chunkSize + 16];
-    int enc_len = aesLib.encrypt(chunk, bytesToProcess, encryptedChunk, AES_KEY, 128, iv);
-    if (enc_len <= 0) {
-      Serial.printf("Encryption failed at chunk %zu\n", chunkNumber);
-      return;
-    }
-
-    byte payloadBin[16 + enc_len];
-    memcpy(payloadBin, iv, 16);
-    memcpy(payloadBin + 16, encryptedChunk, enc_len);
-
-    String encoded = base64::encode(payloadBin, 16 + enc_len);
+    String encoded = base64::encode(encryptedChunk, bytesToProcess);
 
     time_t now = time(nullptr);
     String payload = "{\"timestamp\":" + String(now) +
@@ -131,7 +108,7 @@ void sendImage() {
                      ",\"chunk\":" + String(chunkNumber) +
                      ",\"total_chunks\":" + String(totalChunks) +
                      ",\"data\":\"" + encoded + "\"}";
-    
+
     bool success = client->publish(MQTT_PUB_TOPIC, payload.c_str());
     Serial.printf("Sent chunk %zu/%zu (%zu bytes), publish %s\n",
                   chunkNumber, totalChunks, bytesToProcess,
@@ -143,7 +120,6 @@ void sendImage() {
 
   Serial.println("Image encryption and chunked publish completed.");
 }
-
 
 void setup() {
   delay(500);
@@ -175,11 +151,14 @@ void setup() {
 void loop() {
   client->loop();
 
+  Serial.print("Difference: ");
+  Serial.println(time(nullptr) - lastSend);
+
   if (remainingLoops > 0) {
-    if (millis() - lastSend >= sendInterval) {
+    if (time(nullptr) - lastSend >= sendInterval) {
       sendImage();
       remainingLoops--;
-      lastSend = millis();
+      lastSend = time(nullptr);
     }
   }
 }
