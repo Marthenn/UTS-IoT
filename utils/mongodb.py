@@ -1,3 +1,4 @@
+import threading
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 
@@ -40,3 +41,15 @@ class MongoDBHandler:
                 print("Data must be a dictionary or a list of dictionaries")
         except Exception as e:
             print(f"Error inserting data: {e}")
+
+    def observe_changes(self, callback):
+        def watch_changes():
+            try:
+                with self.collection.watch() as stream:
+                    for change in stream:
+                        if change['operationType'] == 'insert':
+                            callback(change['fullDocument'])
+            except Exception as e:
+                print(f"Error observing changes: {e}")
+        observer_thread = threading.Thread(target=watch_changes)
+        observer_thread.start()
