@@ -150,11 +150,11 @@ class Ui_MainWindow(object):
         self.loops_input.setItemText(1, _translate("MainWindow", "20"))
         self.loops_input.setItemText(2, _translate("MainWindow", "100"))
         self.send_button.setText(_translate("MainWindow", "Kirim Perintah"))
-        self.interval_label.setText(_translate("MainWindow", "xxx ms"))
-        self.latency_esp_db_label.setText(_translate("MainWindow", "xxx ms"))
+        self.interval_label.setText(_translate("MainWindow", "xxx s"))
+        self.latency_esp_db_label.setText(_translate("MainWindow", "xxx s"))
         self.label_5.setText(_translate("MainWindow", "Avg. Latency DB --> Dashboard"))
-        self.latency_db_dashboard_label.setText(_translate("MainWindow", "xxx ms"))
-        self.latency_total_label.setText(_translate("MainWindow", "xxx ms"))
+        self.latency_db_dashboard_label.setText(_translate("MainWindow", "xxx s"))
+        self.latency_total_label.setText(_translate("MainWindow", "xxx s"))
         self.label_6.setText(_translate("MainWindow", "Avg. Latency Total"))
 
         image_pixmap_original = QtGui.QPixmap("images/img.jpg")
@@ -204,14 +204,26 @@ if __name__ == "__main__":
     ))
     image_reconstructor.interval_between_loops_emitted.connect(lambda interval: ui.interval_label.setText(f"{interval} s"))
 
-    ui.send_button.clicked.connect(lambda: (
+    def handle_send_button_click():
         mqtt_handler.publish(
             mqtt_pub_topic,
             payload=ui.loops_input.currentText(),
             qos=1
-        ),
+        )
         ui.image_received.setText("Received Image")
-    ))
+        ui.interval_label.setText("xxx s")
+        ui.latency_esp_db_label.setText("xxx s")
+        ui.latency_db_dashboard_label.setText("xxx s")
+        ui.latency_total_label.setText("xxx s")
+        image_reconstructor.image_count = 0
+        image_reconstructor.chunks = {}
+        image_reconstructor.total_chunks = None
+        image_reconstructor.last_image_timestamp = None
+        image_reconstructor.cumulative_latency_esp_to_db = 0
+        image_reconstructor.cumulative_latency_db_to_dashboard = 0
+        image_reconstructor.cumulative_latency_total = 0
+
+    ui.send_button.clicked.connect(handle_send_button_click)
 
     mongo_handler.observe_changes(image_reconstructor.process_new_document)
     mqtt_thread = threading.Thread(target=mqtt_handler.start)

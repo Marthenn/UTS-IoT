@@ -14,6 +14,7 @@ class ImageReconstructor(QObject):
         super().__init__()
         self.mongo_handler = mongo_handler
         self.xor_key = xor_key
+        self.total_chunks = None
         self.chunks={}
         self.total_chunks = None
         self.last_image_timestamp = None
