@@ -82,8 +82,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void sendImage() {
-  Serial.printf("Image size: %zu bytes\n", img_len);
-
   const size_t chunkSize = 1024;
   const size_t totalChunks = (img_len + chunkSize - 1) / chunkSize;
   size_t offset = 0, chunkNumber = 1;
@@ -110,15 +108,19 @@ void sendImage() {
                      ",\"data\":\"" + encoded + "\"}";
 
     bool success = client->publish(MQTT_PUB_TOPIC, payload.c_str());
+    while (!success) {
+      success = client->publish(MQTT_PUB_TOPIC, payload.c_str());
+    }
+
     Serial.printf("Sent chunk %zu/%zu (%zu bytes), publish %s\n",
                   chunkNumber, totalChunks, bytesToProcess,
                   success ? "OK" : "FAILED");
 
     chunkNumber++;
     offset += bytesToProcess;
+    
+    delay(100);
   }
-
-  Serial.println("Image encryption and chunked publish completed.");
 }
 
 void setup() {
@@ -150,15 +152,18 @@ void setup() {
 
 void loop() {
   client->loop();
-
-  Serial.print("Difference: ");
-  Serial.println(time(nullptr) - lastSend);
-
   if (remainingLoops > 0) {
     if (time(nullptr) - lastSend >= sendInterval) {
       sendImage();
       remainingLoops--;
       lastSend = time(nullptr);
+
+      Serial.print("Remaining Loops: ");
+      Serial.println(remainingLoops);
+
+      if (remainingLoops == 0) {
+        Serial.println("Sent all for the current loops");
+      }
     }
   }
 }
